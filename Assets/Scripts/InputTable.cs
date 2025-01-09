@@ -1,3 +1,4 @@
+using Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -5,7 +6,7 @@ public class InputTable : MonoBehaviour
 {
 
     private PlayerInput playerInput;
-    public Vector2 move;
+    public Vector2 look, move;
     public bool attack, interact, next, jump, crouch, sprint;
     //contains time button held for all bool vars
     public float[] elapsed;
@@ -30,6 +31,10 @@ public class InputTable : MonoBehaviour
                 elapsed[i] = 10;
             }
         }
+    }
+
+    void OnLook(InputValue v) {
+        look = v.Get<Vector2>();
     }
 
     void OnMove(InputValue v) {

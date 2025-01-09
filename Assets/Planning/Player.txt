@@ -1,0 +1,22 @@
+Player needs to be able to
+load in environment
+Move in xz
+Have gravity support, but no jump (eventually), there should be a jump function for testing purposes
+Crouch (have smaller hitbox and lower camera)
+Run faster when holding sprint
+
+Eventual values
+Mana
+Health
+Stamina
+Inventory
+Toolbar
+Effects
+
+Movement calculations
+how to handle crouching: two different capsule objects with their own camera heads and sizes
+Need to prevent phasing through planes: raycast across next position calculated using current velocity
+current velocity is modified by acceleration values
+moving changes velocity, increasing by acceleration until max speed is reached. Normal movement max speed is seperate from actual speed limit
+jump sets velocity and acceleration
+Camera should rotate around pill
