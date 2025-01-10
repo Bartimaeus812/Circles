@@ -1,3 +1,4 @@
+using System;
 using Cinemachine;
 using Unity.VisualScripting;
 using UnityEditor;
@@ -11,13 +12,13 @@ public class PlayerMovement : MonoBehaviour
     private InputTable input;
 //    public Rigidbody Collision, CrouchCollision;
     private Rigidbody rb;
-    public GameObject Collision, CrouchCollision, GroundPoint, CameraRoot;
-    public float camera_sensitivity, camera_clamp, camera_speed, camera_dampening_range, camera_dampening_speed, move_acceleration, move_decceleration, move_max_speed, move_max_speed_crouched, gravity_acceleration, terminal_velocity, grounding_velocity;
+    public GameObject Collision, CrouchCollision, GroundPoint, CameraRoot, StairClimb;
+    public float camera_sensitivity, camera_speed, camera_dampening_range, camera_dampening_speed, move_acceleration, move_decceleration, move_max_speed, move_max_speed_crouched, gravity_acceleration, terminal_velocity, grounding_velocity, stair_climb;
     public bool crouched;
-    private float groundRadius;
-    private Vector3 velocity, groundOffset0, groundOffset1;
+    private float groundRadius, moveSpeed;
+    private Vector3 velocity, groundOffset0, groundOffset1, stairHalfs;
     private Vector2 cameraRotation, cameraSpeed;
-    private bool grounded, grounding;
+    private bool grounded, grounding, stairs;
     private Collider[] groundCols;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -28,18 +29,19 @@ public class PlayerMovement : MonoBehaviour
         groundRadius = GroundPoint.transform.localScale.x*GroundPoint.GetComponent<SphereCollider>().radius;
         velocity = Vector3.zero;
         Cursor.lockState = CursorLockMode.Locked;
+        stairHalfs = StairClimb.GetComponent<BoxCollider>().size/2;
     }
 
     // Update is called once per frame
     void Update()
     {
         CameraRotate();
-        GroundedCheck();
-        Move();
-        if (!grounded) {
-            Gravity();
+        if (Math.Abs(rb.linearVelocity.y)<0.5f) {
+            GroundedCheck();
         }
-        rb.linearVelocity = velocity;
+        Move();
+        Gravity();
+        rb.linearVelocity = new Vector3(velocity.x, rb.linearVelocity.y+velocity.y, velocity.z);
     }
 
     void CameraRotate() {
@@ -59,7 +61,7 @@ public class PlayerMovement : MonoBehaviour
             float alpha = cameraRotation.y/camera_dampening_range;
             cameraSpeed.y = Mathf.Lerp(camera_dampening_speed,cameraSpeed.y,alpha);
         }
-        Debug.Log(cameraRotation);
+//        Debug.Log(cameraRotation);
         cameraSpeed *= Time.deltaTime;
         if (Mathf.Abs(cameraRotation.x)<0.5f) {
             cameraSpeed.x = cameraRotation.x;
@@ -70,49 +72,46 @@ public class PlayerMovement : MonoBehaviour
         rotX = Mathf.Lerp(cameraRotation.x, 0, cameraSpeed.x);
         rotY = Mathf.Lerp(cameraRotation.y, 0, cameraSpeed.y);
         transform.RotateAround(transform.position, Vector3.up, rotX-cameraRotation.x);
-        if (Mathf.Abs(CameraRoot.transform.rotation.x)<70) {
-            CameraRoot.transform.Rotate(Vector3.right, rotY - cameraRotation.y, Space.Self);
-        }
-        if (Mathf.Abs(CameraRoot.transform.rotation.x)>70) {
-            CameraRoot.transform.Rotate(Vector3.right, 70-CameraRoot.transform.rotation.x, Space.Self);
-        } else if (CameraRoot.transform.rotation.x<-70) {
-            CameraRoot.transform.Rotate(Vector3.right, -70-CameraRoot.transform.rotation.x, Space.Self);
-        }
+        CameraRoot.transform.Rotate(Vector3.right, rotY - cameraRotation.y, Space.Self);
         cameraRotation = new Vector2(rotX,rotY);
     }
 
     void GroundedCheck() {
         Vector3 pos = crouched ? groundOffset1 : groundOffset0;
-        groundCols = Physics.OverlapSphere(pos,groundRadius,0);
+        groundCols = Physics.OverlapSphere(pos,groundRadius,3);
         if (!grounded && groundCols.Length>0) {
             grounding = true;
         }
         grounded = groundCols.Length > 0;
+        Collider[] cols = Physics.OverlapBox(StairClimb.transform.position,stairHalfs,StairClimb.transform.rotation,3);
+        stairs = cols.Length>0;
     }
 
     void Move() {
         float max = crouched ? move_max_speed_crouched : move_max_speed;
-        Vector3 move = new Vector3(input.move.x,0,input.move.y);
-        //need to rotate move to match current object rotation
-        move = Vector3.RotateTowards(move,transform.rotation.eulerAngles,7,0);
-        if (input.move.x==0) {
-            velocity.x = Mathf.Lerp(velocity.x,0,move_decceleration*Time.deltaTime);
+        if (input.move==Vector2.zero) {
+            moveSpeed = Mathf.Lerp(moveSpeed,0,move_decceleration*Time.deltaTime);
         } else {
-            velocity.x = Mathf.Lerp(velocity.x,max*move.x,move_acceleration*Time.deltaTime);
+            moveSpeed = Mathf.Lerp(moveSpeed,max,move_acceleration*Time.deltaTime);
         }
-        if (input.move.y==0) {
-            velocity.z = Mathf.Lerp(velocity.z,0,move_decceleration*Time.deltaTime);
-        } else {
-            velocity.z = Mathf.Lerp(velocity.z,max*move.y,move_acceleration*Time.deltaTime);
-        }
+
+        //from https://discussions.unity.com/t/rotate-a-vector3-direction/14722/2
+        Vector3 move = input.move.x*transform.right + input.move.y*transform.forward;
+        velocity.x = moveSpeed*move.x;
+        velocity.z = moveSpeed*move.z;
     }
 
     void Gravity() {
         if (!grounded) {
-            velocity.y = Mathf.Lerp(velocity.y,-terminal_velocity,gravity_acceleration*Time.deltaTime);
+            if (rb.linearVelocity.y<0f) {
+                velocity.y = Mathf.Lerp(velocity.y,-terminal_velocity,gravity_acceleration*Time.deltaTime);
+            }
         } else if (grounding) {
             velocity.y = -grounding_velocity;
             grounding = false;
+        }
+        if (stairs) {
+            velocity.y = stair_climb;
         }
     }
 }
